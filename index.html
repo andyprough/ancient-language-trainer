@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ancient Language Trainer - Offline Study</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Ancient Language Trainer</h1>
+    <p>Offline vocabulary practice for Biblical Hebrew, Greek, Latin, Aramaic, and more</p>
+  </header>
+  <nav class="menu-bar" aria-label="Main menu">
+    <button type="button" class="menu-button" data-menu="file">File</button>
+    <button type="button" class="menu-button" data-menu="vocabulary">Vocabulary</button>
+    <button type="button" class="menu-button" data-menu="games">Games</button>
+    <button type="button" class="menu-button" data-view="statistics">Statistics</button>
+    <button type="button" class="menu-button" data-view="help">Help</button>
+    <span class="file-state" id="fileState">Unsaved collection</span>
+  </nav>
+  <div class="menu-popups">
+    <div class="menu-popup hidden" id="menu-file" role="group" aria-label="File actions">
+      <button type="button" id="newCollection">New blank collection</button>
+      <button type="button" id="loadCollection">Open collection JSON...</button>
+      <button type="button" id="saveCollection">Save collection JSON...</button>
+    </div>
+    <div class="menu-popup hidden" id="menu-vocabulary" role="group" aria-label="Vocabulary actions">
+      <button type="button" data-view="entries">Browse entries</button>
+      <button type="button" data-view="editor">Add vocabulary entry</button>
+      <button type="button" data-view="importer">Crop from chapter screenshot</button>
+    </div>
+    <div class="menu-popup hidden" id="menu-games" role="group" aria-label="Game actions">
+      <button type="button" data-view="matching">Memory Match</button>
+      <button type="button" data-view="flashcards">Flashcards</button>
+      <button type="button" data-view="quiz">Multiple Choice</button>
+      <button type="button" data-view="speed">Speed Recognition</button>
+    </div>
+  </div>
+  <div class="application">
+    <aside class="sidebar">
+      <h2>Study collection</h2>
+      <label for="collectionTitle">Collection name</label>
+      <input type="text" id="collectionTitle" value="My Ancient Languages" maxlength="120">
+      <label for="languageFilter">Language</label>
+      <select id="languageFilter"><option value="">All languages</option></select>
+      <label for="chapterFilter">Chapter / group</label>
+      <select id="chapterFilter"><option value="">All chapters</option></select>
+      <div class="sidebar-buttons">
+        <button type="button" data-view="entries">Browse vocabulary</button>
+        <button type="button" data-view="editor">Add entry</button>
+        <button type="button" data-view="importer">Crop page</button>
+      </div>
+      <div class="daily-reward">
+        <h3>Today's study reward</h3>
+        <p><strong id="todayPoints">0</strong> / <strong id="goalDisplay">100</strong> points</p>
+        <progress id="goalProgress" max="100" value="0"></progress>
+        <p id="rewardMessage">Keep studying to earn your reward.</p>
+      </div>
+    </aside>
+    <main>
+      <p class="status" id="status" role="status" aria-live="polite">Ready. Start by adding a vocabulary entry or cropping a textbook screenshot.</p>
+
+      <section class="view" id="view-entries">
+        <h2>Vocabulary entries</h2>
+        <p class="muted">The collection remains in memory until you choose File &gt; Save collection JSON. No textbook images are uploaded anywhere.</p>
+        <div class="toolbar">
+          <button type="button" class="primary" data-view="editor">Add entry</button>
+          <button type="button" data-view="importer">Crop from screenshot</button>
+          <span class="spacer"></span><strong id="entryCount">0 entries</strong>
+        </div>
+        <div class="table-wrap"><table class="entries-table"><thead><tr><th scope="col">Word / form</th><th scope="col">Definition / answer</th><th scope="col">Language and chapter</th><th scope="col">Actions</th></tr></thead><tbody id="entryRows"></tbody></table></div>
+        <p class="muted" id="emptyNotice">There are no entries yet.</p>
+      </section>
+
+      <section class="view hidden" id="view-editor">
+        <h2 id="editorHeading">Add vocabulary entry</h2>
+        <form id="entryForm">
+          <div class="columns">
+            <fieldset>
+              <legend>Word / question side</legend>
+              <label for="sourceMode">Entry format</label>
+              <select id="sourceMode"><option value="text">Typed text</option><option value="image">Screenshot / image</option></select>
+              <div id="sourceTextBox"><label for="sourceText">Word or form (Unicode)</label><textarea id="sourceText" rows="3" placeholder="Type or paste Hebrew, Greek, Latin, etc."></textarea></div>
+              <div class="hidden" id="sourceImageBox">
+                <label for="sourceFile">Choose cropped screenshot</label><input type="file" id="sourceFile" accept="image/png,image/jpeg,image/gif,image/webp">
+                <p class="muted">Or use the Chapter Screenshot Cropper.</p><div class="image-preview" id="sourcePreview">No word image selected.</div>
+                <button type="button" id="clearSourceImage">Remove word image</button>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Definition / answer side</legend>
+              <label for="answerMode">Entry format</label>
+              <select id="answerMode"><option value="text">Typed text</option><option value="image">Screenshot / image</option></select>
+              <div id="answerTextBox"><label for="answerText">English definition or answer</label><textarea id="answerText" rows="3" placeholder="Enter the exact answer you want to study."></textarea></div>
+              <div class="hidden" id="answerImageBox">
+                <label for="answerFile">Choose cropped screenshot</label><input type="file" id="answerFile" accept="image/png,image/jpeg,image/gif,image/webp">
+                <p class="muted">Or use the Chapter Screenshot Cropper.</p><div class="image-preview" id="answerPreview">No answer image selected.</div>
+                <button type="button" id="clearAnswerImage">Remove answer image</button>
+              </div>
+            </fieldset>
+          </div>
+          <fieldset>
+            <legend>Study information (optional, except language and group)</legend>
+            <div class="columns">
+              <div><label for="languageText">Language</label><input type="text" id="languageText" value="Biblical Hebrew" placeholder="Biblical Hebrew"></div>
+              <div><label for="chapterText">Chapter or group</label><input type="text" id="chapterText" value="Chapter 17" placeholder="Chapter 17 / Verb Forms"></div>
+              <div><label for="textbookText">Textbook</label><input type="text" id="textbookText" value="The First Hebrew Primer" placeholder="Textbook / collection"></div>
+              <div><label for="grammarText">Grammar / morphology</label><input type="text" id="grammarText" placeholder="Qal perfect, 3rd masculine singular"></div>
+            </div>
+            <label for="notesText">Personal notes (not shown on question side)</label><textarea id="notesText" rows="2" placeholder="Optional study notes"></textarea>
+          </fieldset>
+          <div class="toolbar">
+            <button type="submit" id="submitEntry" class="primary">Save entry</button>
+            <button type="button" id="resetEntry">Clear form</button>
+            <button type="button" data-view="importer">Crop from full page</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="view hidden" id="view-importer">
+        <h2>Crop vocabulary from a screenshot</h2>
+        <p>Load a whole chapter page, drag a rectangle around one Hebrew word (or group of forms), then drag another rectangle around its English meaning. Both pieces are stored as images without OCR.</p>
+        <div class="toolbar"><label for="chapterImageFile">Chapter screenshot</label><input type="file" id="chapterImageFile" accept="image/png,image/jpeg,image/gif,image/webp"></div>
+        <p class="muted">The first prototype uses manual cropping. Automatic row suggestions are a planned enhancement, not yet implemented.</p>
+        <div class="crop-workspace"><canvas id="cropCanvas" width="700" height="350" aria-label="Chapter screenshot. Drag with the mouse to select an area."></canvas></div>
+        <p id="cropInfo">Open an image above to begin.</p>
+        <div class="toolbar">
+          <button type="button" id="cropToSource">Use selection as Hebrew / word</button>
+          <button type="button" id="cropToAnswer">Use selection as English / definition</button>
+          <button type="button" id="cropClear">Clear selection</button>
+          <button type="button" class="primary" data-view="editor">View entry form</button>
+        </div>
+        <p class="muted">Tip: return to this cropper repeatedly to build additional entries from the same chapter screenshot. After cropping both sides, use the entry form to enter any grammar notes and save.</p>
+      </section>
+
+      <section class="view hidden game" id="view-matching">
+        <h2>Memory Match</h2><p>Find each word and its matching definition. Requires at least two study entries in the selected language/group.</p>
+        <div class="toolbar"><button type="button" class="primary" id="startMatching">New matching game</button><span id="matchInfo"></span></div><div id="matchBoard" class="match-board"></div>
+      </section>
+      <section class="view hidden game" id="view-flashcards">
+        <h2>Flashcards</h2><p>Recall the definition before revealing the answer.</p>
+        <div class="toolbar"><button type="button" class="primary" id="startFlashcards">Start / restart flashcards</button><span id="flashInfo"></span></div>
+        <div class="flashcard" id="flashCard"><p>Press Start to begin.</p></div>
+        <div class="toolbar"><button type="button" id="revealFlash">Reveal answer</button><button type="button" id="knownFlash">I knew it (+4)</button><button type="button" id="missedFlash">Review again</button></div>
+      </section>
+      <section class="view hidden game" id="view-quiz">
+        <h2>Multiple Choice</h2><p>Choose the matching English definition. Requires at least two entries.</p>
+        <div class="toolbar"><button type="button" class="primary" id="startQuiz">Start / restart quiz</button><span id="quizInfo"></span></div><div class="question" id="quizQuestion">Press Start to begin.</div><div class="choices" id="quizChoices"></div>
+      </section>
+      <section class="view hidden game" id="view-speed">
+        <h2>Speed Recognition</h2><p>A 60-second recognition challenge using the same vocabulary collection. Answer quickly but accurately.</p>
+        <div class="toolbar"><button type="button" class="primary" id="startSpeed">Start 60-second challenge</button><strong id="speedInfo">60 seconds</strong></div><div class="question" id="speedQuestion">Press Start to begin.</div><div class="choices" id="speedChoices"></div>
+      </section>
+      <section class="view hidden" id="view-statistics">
+        <h2>Study statistics and rewards</h2>
+        <p>These values are included when you export your collection JSON. No server or account is involved.</p>
+        <div class="stats-grid"><div><strong id="statsEntries">0</strong><span>Vocabulary entries</span></div><div><strong id="statsToday">0</strong><span>Points today</span></div><div><strong id="statsTotal">0</strong><span>Lifetime points</span></div></div>
+        <fieldset><legend>Personal daily reward</legend><label for="dailyGoal">Daily point goal</label><input type="number" id="dailyGoal" min="10" max="10000" step="10" value="100"><label for="rewardText">Reward</label><input type="text" id="rewardText" value="Enjoy a tasty snack!" maxlength="150"><button type="button" id="saveReward">Update reward settings</button></fieldset>
+      </section>
+      <section class="view hidden" id="view-help">
+        <h2>Help and privacy</h2>
+        <h3>Getting started</h3>
+        <ol><li>Choose Vocabulary &gt; Add vocabulary entry for a word screenshot, typed word, typed answer, or answer screenshot.</li><li>Choose Vocabulary &gt; Crop from screenshot for manual selection from a larger textbook page. Drag across the image to select the content, then assign it to either side.</li><li>Save the entry. Create at least two entries to use Memory Match and Multiple Choice.</li><li>Choose File &gt; Save collection JSON regularly. Opening a JSON file will replace the current in-memory collection.</li></ol>
+        <h3>Local files and copyright</h3>
+        <p>No uploads or web services are used. Your local study collection may contain textbook images; keep those personal materials outside the public source-code repository unless you have distribution permission.</p>
+        <h3>Compatibility</h3><p>Designed with conservative JavaScript for Pale Moon and Basilisk (UXP/Goanna); verification on those actual browsers is still required. Local-file download behavior differs between browsers, so test Save and Open before entering a large number of entries.</p>
+        <h3>Licensing</h3><p>Program source: GNU GPL v3 or later. Third-party textbook screenshots are not part of the software license.</p>
+      </section>
+    </main>
+  </div>
+  <input class="hidden" type="file" id="collectionFile" accept=".json,application/json">
+  <footer>Ancient Language Trainer - Free software under GPL-3.0-or-later. You own and control your study data.</footer>
+  <script src="assets/app.js"></script>
+</body>
+</html>

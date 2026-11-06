@@ -1,0 +1,8 @@
+# Private study decks and screenshots belong outside the public source repository.
+local-data/
+private-vocabulary/
+*.altcollection.json
+*.altbackup.json
+*.log
+.DS_Store
+Thumbs.db
