@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ancient Language Trainer - Batch Vocabulary Review (experimental)</title>
+<style>
+* { box-sizing: border-box; }
+body { background: #edf2f6; font: 15px Arial, Helvetica, sans-serif; color: #223240; margin: 0; }
+header { background: #1b4160; padding: 19px 24px; color: #fff; }
+header h1 { margin: 0 0 5px; font-size: 23px; }
+header p { margin: 0; font-size: 13px; color: #dceaf4; }
+nav { padding: 11px 24px; background: #dce6ed; border-bottom: 1px solid #bccbd5; }
+main { max-width: 1150px; margin: 20px auto; padding: 0 16px 40px; }
+.panel { background: white; border-radius: 6px; border: 1px solid #c7d3dc; padding: 18px; margin: 0 0 17px; }
+h2 { font-size: 19px; margin: 0 0 10px; }
+h3 { font-size: 16px; margin: 0 0 8px; }
+.small { font-size: 13px; color: #566675; line-height: 1.5; }
+.notice { border: 1px solid #bfd0dd; background: #e9f2fb; padding: 11px; margin: 12px 0; }
+label { display: block; font-weight: bold; font-size: 13px; margin: 12px 0 5px; }
+input[type=text],input[type=file],textarea,select { font: 15px Arial,Helvetica,sans-serif; }
+input[type=text],textarea,select { width: 100%; border: 1px solid #9cabb7; padding: 8px; background: #fff; border-radius: 3px; }
+input[type=file] { max-width: 100%; }
+textarea { resize: vertical; }
+button { font: 15px Arial,Helvetica,sans-serif; border: 1px solid #9aaab8; padding: 9px 15px; border-radius: 4px; background: #f5f7f9; cursor: pointer; color: #18394f; }
+button.primary { background: #21618c; border-color: #195071; color: white; }
+button:disabled { opacity: .55; cursor: default; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.cols { display: flex; flex-wrap: wrap; gap: 14px; }
+.cols > div { flex: 1 1 200px; }
+.card { border-top: 1px solid #d8e1e7; padding: 14px 0; }
+.cardHead { background: #eef2f6; padding: 8px 10px; font-size: 14px; }
+.cardHead label { display: inline; margin: 0; font-weight: normal; }
+.cardImages { display: flex; flex-wrap: wrap; gap: 18px; padding-top: 10px; }
+.cardImages > div { flex: 1 1 320px; min-width: 0; }
+.cardImages img { max-width: 100%; max-height: 150px; width: auto; height: auto; display: block; margin: 7px 0; }
+.imgbox { border: 1px solid #ccd6de; background: #fff; min-height: 86px; padding: 8px; display: flex; align-items: center; }
+.entrymeta { display: flex; flex-wrap: wrap; gap: 14px; }
+.entrymeta > div { flex: 1 1 300px; }
+.count { font-weight: bold; }
+.hidden { display: none; }
+.help { background: #f9fafb; border-left: 3px solid #9cb9c9; padding: 8px 12px; }
+@media(max-width:680px){.panel{padding:12px}header,nav{padding:12px}}
+</style>
+</head>
+<body>
+<header><h1>Batch Vocabulary Review</h1><p>Offline experimental ZIP reader for Pale Moon and Basilisk</p></header>
+<nav>Screenshot Pair Helper ZIP &rarr; inspect pairs &rarr; assign chapter &rarr; export approved batch</nav>
+<main>
+<section class="panel">
+<h2>1. Open an exported screenshot-pairs ZIP</h2>
+<p class="small">Choose a ZIP exported by the Screenshot Pair Helper. This reads the images locally. Nothing is uploaded, and your existing Ancient Language Trainer collection is not modified.</p>
+<input id="zipInput" type="file" accept=".zip,application/zip">
+<button id="load" class="primary">Open ZIP and preview</button>
+<div class="notice" id="status" role="status">No ZIP opened yet.</div>
+</section>
+<section class="panel hidden" id="review">
+<h2>2. Review pairs and enter shared metadata</h2>
+<p class="small">Uncheck any pair you don't want. Images are displayed as the original crops, without OCR or edited spelling. This tool does not yet merge entries into the main trainer.</p>
+<div class="cols">
+<div><label for="language">Language</label><input id="language" type="text" value="Biblical Hebrew"></div>
+<div><label for="textbook">Textbook / source</label><input id="textbook" type="text" value="The First Hebrew Primer"></div>
+<div><label for="chapter">Chapter / group</label><input id="chapter" type="text" value="Chapter 17"></div>
+</div>
+<div class="row" style="margin:14px 0;">
+<button id="all">Select all</button><button id="none">Select none</button>
+<span class="count" id="count"></span>
+</div>
+<div id="entries"></div>
+</section>
+<section class="panel hidden" id="exportPanel">
+<h2>3. Save the approved batch</h2>
+<p class="small">This exports a portable <strong>ALT-approved-batch-1</strong> JSON file containing the selected original PNGs as data URIs, the textbook/chapter, and optional notes. It is an <strong>intermediate batch file</strong>, not yet the game's normal Save Collection JSON format. We'll connect it to the game's internal collection in the next integration step.</p>
+<div class="row"><button id="export" class="primary">Export approved-batch JSON</button><span class="small" id="exportInfo"></span></div>
+</section>
+<div class="small help"><strong>Reminder:</strong> Preserve your originals and existing study collection JSON. Do not put textbook screenshots or derived batch JSON in your public Git repository without distribution permission.</div>
+</main>
+<script src="../vendor/jszip.min.js"></script>
+<script src="../assets/alt-pair-zip-reader.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var current = null, accepted = [], grammarFields = [], noteFields = [];
+  function setStatus(s) { $('status').textContent = s; }
+  function addText(parent, tag, text, className) {
+    var e = document.createElement(tag); e.textContent = text; if(className)e.className=className;
+    parent.appendChild(e); return e;
+  }
+  function updateCount() {
+    var n = 0, i;
+    for (i=0;i<accepted.length;i++) if(accepted[i].checked) n++;
+    $('count').textContent = n + ' of ' + accepted.length + ' selected';
+    $('export').disabled = n < 1;
+    $('exportInfo').textContent = n ? 'Selected images will be embedded in the JSON.' : 'Choose at least one pair.';
+  }
+  function render(data) {
+    var container = $('entries');
+    container.textContent = ''; current = data; accepted=[]; grammarFields=[]; noteFields=[];
+    var i;
+    for (i=0;i<data.entries.length;i++) {
+      (function (index) {
+        var entry = data.entries[index], row = document.createElement('div');
+        row.className = 'card';
+        var head = document.createElement('div'); head.className='cardHead';
+        var check = document.createElement('input'); check.type='checkbox'; check.checked=true;
+        var lab = document.createElement('label'); lab.appendChild(check);
+        lab.appendChild(document.createTextNode(' Include pair ' + (index+1) + ' (' + (entry.column || 'unknown') + ' column)'));
+        head.appendChild(lab); row.appendChild(head);
+        accepted.push(check);
+        check.onchange=updateCount;
+        var images=document.createElement('div'); images.className='cardImages';
+        var defBox=document.createElement('div'); addText(defBox,'strong','English definition');
+        var defHolder=document.createElement('div'); defHolder.className='imgbox';
+        var defImg=document.createElement('img'); defImg.src=entry.definitionURI; defImg.alt='English definition crop, pair '+(index+1);
+        defHolder.appendChild(defImg); defBox.appendChild(defHolder);
+        var hebBox=document.createElement('div'); addText(hebBox,'strong','Vocabulary word / form');
+        var hebHolder=document.createElement('div'); hebHolder.className='imgbox';
+        var hebImg=document.createElement('img'); hebImg.src=entry.wordURI; hebImg.alt='Word crop, pair '+(index+1);
+        hebHolder.appendChild(hebImg); hebBox.appendChild(hebHolder);
+        images.appendChild(defBox);images.appendChild(hebBox);row.appendChild(images);
+        var metadata=document.createElement('div'); metadata.className='entrymeta';
+        var g=document.createElement('div'); var gl=document.createElement('label'); gl.textContent='Grammar / morphology (optional)';
+        var gi=document.createElement('input'); gi.type='text'; gi.placeholder='e.g. Qal perfect, 3ms'; gl.appendChild(gi);g.appendChild(gl);
+        var n=document.createElement('div');var nl=document.createElement('label');nl.textContent='Notes (optional)';
+        var ni=document.createElement('input');ni.type='text'; ni.placeholder='Study notes';nl.appendChild(ni);n.appendChild(nl);
+        metadata.appendChild(g);metadata.appendChild(n);row.appendChild(metadata);
+        grammarFields.push(gi);noteFields.push(ni);
+        container.appendChild(row);
+      })(i);
+    }
+    $('review').className='panel'; $('exportPanel').className='panel'; updateCount();
+    setStatus('Loaded '+data.entries.length+' pairs from '+data.sourceFile+'. Review below before exporting.');
+  }
+  $('load').onclick=function () {
+    var file = $('zipInput').files && $('zipInput').files[0];
+    if (!file) { setStatus('Choose the ZIP file first.'); return; }
+    $('load').disabled=true;setStatus('Reading ZIP locally...');
+    ALTReadPairZip(file,function(data){$('load').disabled=false;render(data);},function(error){
+      $('load').disabled=false;current=null;$('review').className='panel hidden';$('exportPanel').className='panel hidden';setStatus('Error: '+error);
+    });
+  };
+  $('all').onclick=function(){for(var i=0;i<accepted.length;i++)accepted[i].checked=true;updateCount();};
+  $('none').onclick=function(){for(var i=0;i<accepted.length;i++)accepted[i].checked=false;updateCount();};
+  function downloadJSON(text){
+    var blob = new Blob([text],{type:'application/json;charset=utf-8'});
+    var url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url;a.download='ancient-language-approved-batch.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},60000);
+  }
+  $('export').onclick=function(){
+    if(!current)return;
+    var batch = {format:'ALT-approved-batch-1',sourceFile:current.sourceFile,
+      language:$('language').value, textbook:$('textbook').value,chapter:$('chapter').value,
+      entries:[]};
+    var i,e;
+    for(i=0;i<current.entries.length;i++) {
+      if(!accepted[i].checked) continue;
+      e=current.entries[i];
+      batch.entries.push({wordType:'image',wordImage:e.wordURI,
+        definitionType:'image',definitionImage:e.definitionURI,
+        grammar:grammarFields[i].value,notes:noteFields[i].value,column:e.column});
+    }
+    if(!batch.entries.length){setStatus('Choose at least one pair.');return;}
+    downloadJSON(JSON.stringify(batch,null,2));
+    setStatus('Exported '+batch.entries.length+' approved pairs. This JSON does not yet open directly in the main trainer.');
+  };
+})();
+</script>
+</body>
+</html>
