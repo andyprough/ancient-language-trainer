@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ancient Language Trainer - Screenshot Pair Helper (experimental)</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; background: #eef2f6; color: #273544; font: 15px Arial, Helvetica, sans-serif; }
+header { background: #1b4160; color: white; padding: 19px 24px; }
+header h1 { margin: 0 0 6px; font-size: 23px; }
+header p { margin: 0; font-size: 13px; color: #dae7ef; }
+nav { background: #dae4ec; border-bottom: 1px solid #b8c7d4; padding: 10px 24px; }
+nav a { color: #174a73; }
+main { max-width: 1260px; margin: 18px auto; padding: 0 18px 48px; }
+.panel { background: white; border: 1px solid #c6d0d9; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+button, select, input[type=number], input[type=file] { font: inherit; }
+button { padding: 8px 12px; border: 1px solid #9aaab9; border-radius: 4px; background: #f4f7fa; color: #16364c; cursor: pointer; }
+button.primary { color: white; background: #24608b; border-color: #1a4e75; }
+button:disabled { opacity: .5; cursor: default; }
+input[type=file] { max-width: 100%; }
+label { display: inline-block; margin-right: 14px; margin-bottom: 10px; }
+label span { display: block; font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+select, input[type=number] { background: white; border: 1px solid #9eaeb9; border-radius: 4px; padding: 6px; }
+input[type=number] { width: 78px; }
+.notice { border: 1px solid #c4d3e0; background: #eef5fd; padding: 10px; margin: 12px 0; }
+.small { color: #5c6977; font-size: 13px; line-height: 1.5; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.toolbar { margin: 10px 0; }
+#pageCanvas { display: block; width: 100%; max-width: 1100px; height: auto; border: 1px solid #abb9c5; cursor: crosshair; }
+#preview { display: none; }
+.pair { border-top: 1px solid #d6dde4; padding: 12px 0; }
+.pair.selected { background: #f3f7fb; outline: 1px solid #9db3c4; }
+.pairHead { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding: 3px 10px; }
+.pairData { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 10px; align-items: flex-start; }
+.pairData > div { flex: 1 1 270px; min-width: 0; }
+.pairData .crop { display: flex; align-items: center; justify-content: flex-start; min-height: 65px; padding: 7px; background: #fdfdfd; border: 1px solid #cbd6df; overflow: auto; }
+.pairData img { display: block; max-width: 100%; max-height: 140px; width: auto; height: auto; image-rendering: auto; }
+.pairData .croplabel { font-size: 12px; font-weight: bold; color: #52667a; margin-bottom: 6px; }
+.hidden { display: none; }
+#summary { font-weight: bold; }
+@media (max-width: 700px) { main { padding: 0 8px 30px; } header, nav { padding-left: 10px; } .panel { padding: 10px; } }
+</style>
+</head>
+<body>
+<header><h1>Screenshot Pair Helper</h1><p>Offline experimental helper for Ancient Language Trainer - no OCR, no internet, no transcription</p></header>
+<nav>Vocabulary screenshot &rarr; suggested paired crops &rarr; manual review &rarr; ZIP export</nav>
+<main>
+<section class="panel">
+<h2>1. Choose your textbook screenshot</h2>
+<p class="small">This helper does not modify your main Ancient Language Trainer collection. It exports paired PNG images that you can add through the existing vocabulary editor. All processing is local to this browser tab.</p>
+<label><span>Screenshot (PNG, JPEG, WebP if supported)</span><input id="file" type="file" accept="image/*"></label>
+<div class="row">
+<label><span>Vocabulary layout</span><select id="layout"><option value="two">Two columns</option><option value="one">One column</option></select></label>
+<label><span>Vocabulary starts at (% of page height)</span><input id="startY" type="number" min="0" max="90" value="34"></label>
+<label><span>Between columns (% of width)</span><input id="split" type="number" min="40" max="60" value="50"></label>
+<label><span>Darkness threshold (0-255)</span><input id="threshold" type="number" min="40" max="230" value="155"></label>
+</div>
+<div class="row toolbar"><button id="analyze" class="primary" disabled>Suggest vocabulary pairs</button><span class="small">Use the numbered suggestions as a starting point, not as verified vocabulary.</span></div>
+<div id="message" class="notice" role="status">Choose an image to begin.</div>
+</section>
+<section id="preview" class="panel">
+<h2>2. Review or correct the crop rectangles</h2>
+<p class="small">Choose a pair below, then select <strong>Draw English crop</strong> or <strong>Draw Hebrew crop</strong>. Drag a rectangle around the desired portion of the original page. The blue rectangle indicates English; orange indicates Hebrew. You can remove unwanted suggestions and add missed ones.</p>
+<div class="row toolbar">
+<button id="drawEnglish">Draw English crop</button>
+<button id="drawHebrew">Draw Hebrew crop</button>
+<button id="addPair">Add a blank pair</button>
+<button id="cancelDraw">Stop drawing</button>
+<span id="drawHint" class="small"></span>
+</div>
+<canvas id="pageCanvas" aria-label="Screenshot with editable crop rectangles"></canvas>
+<p class="small">Hebrew suggestions include a little extra room at the left to preserve short dashes. If your textbook uses unusual spacing or extra leader dots appear, manually adjust the rectangles before export.</p>
+</section>
+<section id="results" class="panel hidden">
+<h2>3. Approve the suggested pairs</h2>
+<p id="summary" class="small"></p>
+<div id="pairs"></div>
+<div class="row toolbar">
+<button id="downloadZip" class="primary">Download approved pairs as ZIP</button>
+<span class="small">The ZIP contains numbered PNG word/definition images and a manifest. No OCR or cloud upload.</span>
+</div>
+</section>
+</main>
+<script>
+(function () {
+'use strict';
+var $ = function (id) { return document.getElementById(id); };
+var image = new Image(), W = 0, H = 0, pixels = null;
+var pairs = [], selected = -1, drawMode = '', dragging = false, fromX = 0, fromY = 0, liveRect = null;
+var canvas = $('pageCanvas'), ctx = canvas.getContext('2d');
+var fileName = '', inkThreshold = 155;
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function msg(s) { $('message').textContent = s; }
+function rect(x,y,w,h) { return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) }; }
+function validRect(r) { return r && r.w >= 2 && r.h >= 2; }
+function copyRect(r) { return rect(r.x,r.y,r.w,r.h); }
+function ink(x,y) {
+  if (x < 0 || x >= W || y < 0 || y >= H) return false;
+  var p = (Math.floor(y)*W + Math.floor(x))*4;
+  return pixels[p+3] > 170 && (pixels[p]*.299 + pixels[p+1]*.587 + pixels[p+2]*.114) < inkThreshold;
+}
+function openFile(file) {
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function (ev) {
+    image.onload = function () {
+      W = image.naturalWidth || image.width; H = image.naturalHeight || image.height;
+      if (!W || !H || W*H > 36000000) { msg('Image too large or unsupported. Please use a smaller screenshot.'); return; }
+      canvas.width = W; canvas.height = H;
+      ctx.drawImage(image,0,0);
+      try { pixels = ctx.getImageData(0,0,W,H).data; }
+      catch (e) { msg('Cannot read image pixels in this browser: ' + e.message); return; }
+      pairs = []; selected = -1; drawMode = '';
+      $('preview').style.display = 'block'; $('results').className = 'panel hidden';
+      $('analyze').disabled = false;
+      paint(); msg('Loaded ' + fileName + ' (' + W + ' x ' + H + '). Choose Suggest vocabulary pairs.');
+    };
+    image.onerror = function () { msg('The selected image could not be opened.'); };
+    image.src = ev.target.result;
+  };
+  fileName = file.name || 'screenshot';
+  reader.readAsDataURL(file);
+}
+function inkRunRows(x0,x1,yStart) {
+  var yes = [], y,x,n,step = (x1-x0 > 180 ? 2 : 1);
+  for (y=yStart; y<H-3; y++) {
+    n=0;
+    for (x=x0; x<x1; x+=step) if (ink(x,y)) n++;
+    yes[y] = n >= 2;
+  }
+  var rows = [], start = -1, end = -1;
+  for (y=yStart; y<H-2; y++) {
+    if (yes[y]) { if (start<0) start=y; end=y; }
+    else if (start>=0 && y-end>3) {
+      if (end-start>=5) rows.push({ top:start, bottom:end, mid:Math.round((start+end)/2) });
+      start=-1;
+    }
+  }
+  if (start>=0 && end-start>=5) rows.push({top:start,bottom:end,mid:Math.round((start+end)/2)});
+  return rows;
+}
+function hasTallStroke(x,y0,y1) {
+  /* A glyph usually occupies a taller vertical span than a dotted leader. */
+  var y,first=-1,last=-1,count=0;
+  for(y=y0;y<y1;y++) if(ink(x,y)) {
+    if(first<0)first=y;
+    last=y;count++;
+  }
+  return count>=4 && last-first>=7;
+}
+function englishSpan(L,R,top,bot) {
+  var wid=R-L, minX=-1, last=-1, x;
+  var xMax=Math.floor(L+wid*.66);
+  for(x=Math.floor(L+3);x<xMax;x++) {
+    if(hasTallStroke(x,top,bot)) {
+      if(minX<0)minX=x;
+      else if(x-last>18)break; /* A real gap after the last English word. */
+      last=x;
+    }
+  }
+  if(minX<0) return [Math.floor(L+5),Math.floor(L+wid*.28)];
+  return [minX,last];
+}
+function cropBounds(x0,x1,y0,y1,leftPadding) {
+  x0=clamp(Math.floor(x0),0,W-1); x1=clamp(Math.ceil(x1),x0+1,W);
+  y0=clamp(Math.floor(y0),0,H-1); y1=clamp(Math.ceil(y1),y0+1,H);
+  var x, y, c, xs=-1, xe=-1, ys=-1, ye=-1;
+  for (x=x0; x<x1; x++) {
+    if (hasTallStroke(x,y0,y1)) {if(xs<0)xs=x;xe=x;}
+  }
+  if (xs<0) {xs=x0;xe=x1-1;}
+  for (y=y0;y<y1;y++) {
+    c=0;
+    for(x=xs;x<=xe;x++) if (ink(x,y)) c++;
+    if(c>=2) {if(ys<0)ys=y;ye=y;}
+  }
+  if(ys<0) {ys=y0;ye=y1-1;}
+  /* Hebrew forms sometimes start with a short horizontal dash that the tall-stroke
+   * filter correctly ignores when detecting the body of a word. Keep extra
+   * space at the visual left edge so the dash survives the final crop. */
+  var pad=(typeof leftPadding==='number' ? leftPadding : 5);
+  var left=clamp(xs-pad,0,W-1), top=clamp(ys-5,0,H-1);
+  return rect(left,top,clamp(xe-left+6,2,W-left),clamp(ye-ys+11,2,H-top));
+}
+/* Find the actual visual gap between two consecutive entries. The English
+ * lines are useful row anchors, but their midpoints do not accurately divide
+ * the Hebrew when an entry uses two lines. We only use *blank horizontal rows*
+ * on the Hebrew side; no letters are identified or modified. */
+function hebrewRowBreak(L,R,previous,next) {
+  var width=R-L;
+  var lo=clamp(previous.bottom+2,0,H-1);
+  var hi=clamp(next.top-3,lo,H-1);
+  var fallback=Math.round(previous.mid*.5+next.mid*.5);
+  if(hi-lo < 6) return fallback;
+  var left=Math.floor(L+width*.52), right=Math.floor(R-width*.025);
+  var x,y,inkCount,runStart=-1,lastRun=null, runLength;
+  /* A narrow dot or leader line cannot be mistaken for a complete text row:
+     require at least three successive fully blank scanned rows. */
+  for(y=lo;y<=hi+1;y++) {
+    inkCount=0;
+    if(y<=hi) {
+      for(x=left;x<right;x+=2) if(ink(x,y)) {inkCount++;break;}
+    }
+    if(y<=hi && inkCount===0) {
+      if(runStart<0) runStart=y;
+    } else if(runStart>=0) {
+      runLength=y-runStart;
+      if(runLength>=3) lastRun={start:runStart,end:y-1};
+      runStart=-1;
+    }
+  }
+  /* Prefer the last substantial blank band before the following English row.
+     This is critical for double-line Hebrew above a single-line entry. */
+  if(lastRun) return Math.round((lastRun.start+lastRun.end)/2);
+  return fallback;
+}
+function analyzeColumn(L,R,yStart) {
+  var wid=R-L;
+  var anchors=inkRunRows(Math.floor(L+wid*.03),Math.floor(L+wid*.31),yStart);
+  var output=[], i, top,bot, en,he, one, span, separators=[];
+  for(i=0;i<anchors.length-1;i++) separators.push(hebrewRowBreak(L,R,anchors[i],anchors[i+1]));
+  for(i=0;i<anchors.length;i++) {
+    top = i===0 ? Math.max(yStart, Math.round(anchors[i].mid - (anchors.length>1?(anchors[i+1].mid-anchors[i].mid)*.52:16))) : separators[i-1];
+    bot = i===anchors.length-1 ? H-3 : separators[i];
+    if(bot-top<8) continue;
+    span = englishSpan(L,R,top,bot);
+    en = cropBounds(span[0]-2,span[1]+2,top,bot);
+    /* Image-scaled padding preserves the small Hebrew dash prefix (e.g. -פי)
+       while leaving English crop boundaries and vertical separators unchanged. */
+    he = cropBounds(Math.max(L+wid*.35,span[1]+16), R-3, top, bot, Math.max(12,Math.round(W*.018)));
+    /* Keep the full predicted row height to avoid clipping niqqud/cantillation. */
+    en.y = top; en.h = Math.max(2,bot-top);
+    he.y = top; he.h = Math.max(2,bot-top);
+    one = { english:en, hebrew:he, keep:true, side:(L===0?'left':'right') };
+    output.push(one);
+  }
+  return output;
+}
+function suggest() {
+  if (!pixels) return;
+  inkThreshold=clamp(parseInt($('threshold').value,10)||155,40,230);
+  var start=clamp(Math.round(H*(parseFloat($('startY').value)||0)/100),0,H-10);
+  var spl=clamp(Math.round(W*(parseFloat($('split').value)||50)/100),W*.35,W*.65);
+  var columns=$('layout').value;
+  pairs=columns==='two' ? analyzeColumn(0,spl,start).concat(analyzeColumn(spl,W,start)) : analyzeColumn(0,W,start);
+  /* In the typical two-column page, read the left column first, then right. */
+  selected=pairs.length ? 0 : -1;
+  drawMode='';
+  paint(); renderPairs();
+  msg('Suggested ' + pairs.length + ' pairs. They are NOT verified: inspect the previews and correct boundaries before exporting.');
+}
+function paint() {
+  if (!W) return;
+  ctx.clearRect(0,0,W,H); ctx.drawImage(image,0,0);
+  if(selected<0 || !pairs[selected]) return;
+  var p=pairs[selected];
+  function stroke(r,color) { if(!validRect(r))return; ctx.strokeStyle=color;ctx.lineWidth=Math.max(2,Math.round(W/700));ctx.strokeRect(r.x,r.y,r.w,r.h); }
+  stroke(p.english,'#0877bc'); stroke(p.hebrew,'#d35400');
+  if(liveRect) stroke(liveRect,drawMode==='english'?'#0877bc':'#d35400');
+}
+function point(ev) {
+  var b=canvas.getBoundingClientRect();
+  return {x:clamp(Math.round((ev.clientX-b.left)*W/b.width),0,W), y:clamp(Math.round((ev.clientY-b.top)*H/b.height),0,H)};
+}
+function drawnRect(a,b,c,d) { return rect(Math.min(a,c),Math.min(b,d),Math.abs(c-a),Math.abs(d-b)); }
+canvas.addEventListener('mousedown',function(ev){
+  if(!drawMode||selected<0)return;
+  var p=point(ev);dragging=true;fromX=p.x;fromY=p.y;liveRect=null;ev.preventDefault();
+});
+canvas.addEventListener('mousemove',function(ev){
+  if(!dragging)return;var p=point(ev);liveRect=drawnRect(fromX,fromY,p.x,p.y);paint();
+});
+window.addEventListener('mouseup',function(ev){
+  if(!dragging)return;dragging=false;var p=point(ev);var r=drawnRect(fromX,fromY,p.x,p.y);
+  if(validRect(r)&&pairs[selected]) pairs[selected][drawMode]=r;
+  liveRect=null;paint();renderPairs();
+});
+function makeCropData(r) {
+  if(!validRect(r))return '';
+  var c=document.createElement('canvas');c.width=r.w;c.height=r.h;
+  c.getContext('2d').drawImage(image,r.x,r.y,r.w,r.h,0,0,r.w,r.h);
+  return c.toDataURL('image/png');
+}
+function node(tag,className,text) {var n=document.createElement(tag);if(className)n.className=className;if(text!==undefined)n.textContent=text;return n;}
+function renderPairs(){
+  var area=$('pairs');while(area.firstChild)area.removeChild(area.firstChild);
+  $('results').className = pairs.length ? 'panel' : 'panel hidden';
+  $('summary').textContent=pairs.length+' suggested pairs ('+pairs.filter(function(p){return p.keep;}).length+' approved).';
+  pairs.forEach(function(p,i){
+    var wrap=node('div','pair'+(i===selected?' selected':''));
+    var head=node('div','pairHead');
+    var box=document.createElement('input');box.type='checkbox';box.checked=p.keep;
+    box.onchange=function(){p.keep=box.checked;renderPairs();};
+    head.appendChild(box);head.appendChild(node('strong','', 'Pair '+(i+1)+' ('+p.side+' column)'));
+    var edit=node('button','',i===selected?'Selected':'Select / correct');
+    edit.onclick=function(){selected=i;drawMode='';paint();renderPairs();};head.appendChild(edit);
+    var remove=node('button','','Remove');
+    remove.onclick=function(){pairs.splice(i,1);selected=clamp(selected,0,pairs.length-1);if(!pairs.length)selected=-1;paint();renderPairs();};head.appendChild(remove);
+    wrap.appendChild(head);
+    var data=node('div','pairData');
+    [['English definition',p.english],['Hebrew word / form',p.hebrew]].forEach(function(item){
+      var col=node('div','');col.appendChild(node('div','cropLabel',item[0]));
+      var field=node('div','crop');var img=node('img');img.alt=item[0]+' crop '+(i+1);img.src=makeCropData(item[1]);field.appendChild(img);col.appendChild(field);data.appendChild(col);
+    });
+    wrap.appendChild(data);area.appendChild(wrap);
+  });
+}
+function setMode(mode){
+  if(selected<0){msg('Select or add a pair before adjusting rectangles.');return;}
+  drawMode=mode;$('drawHint').textContent=mode?'Drag a rectangle for '+mode+' on the page image.':'Drawing stopped.';
+}
+function downloadBlob(blob,name){
+  var url=window.URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);
+  window.setTimeout(function(){window.URL.revokeObjectURL(url);},30000);
+}
+function encodeAscii(str){var out=[],i;for(i=0;i<str.length;i++)out.push(str.charCodeAt(i)&255);return new Uint8Array(out);}
+function pngBytes(str){
+  var binary=atob(str.split(',')[1]), out=new Uint8Array(binary.length), i;
+  for(i=0;i<binary.length;i++)out[i]=binary.charCodeAt(i);
+  return out;
+}
+var crcTable=(function(){var table=[],i,k,c;for(i=0;i<256;i++){c=i;for(k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;table[i]=c>>>0;}return table;}());
+function crc32(bytes){var c=0xFFFFFFFF,i;for(i=0;i<bytes.length;i++)c=crcTable[(c^bytes[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function le16(n){return [n&255,(n>>>8)&255];}
+function le32(n){return [n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255];}
+function headerBytes(prefix,name,data,crc,offset){
+  var a=[],i;function add(v){for(i=0;i<v.length;i++)a.push(v[i]);}
+  if(prefix==='local') {add(le32(0x04034b50));add(le16(20));add(le16(0));add(le16(0));add(le16(0));add(le16(0));add(le32(crc));add(le32(data.length));add(le32(data.length));add(le16(name.length));add(le16(0));}
+  else {add(le32(0x02014b50));add(le16(20));add(le16(20));add(le16(0));add(le16(0));add(le16(0));add(le16(0));add(le32(crc));add(le32(data.length));add(le32(data.length));add(le16(name.length));add(le16(0));add(le16(0));add(le16(0));add(le16(0));add(le32(0));add(le32(offset));}
+  return new Uint8Array(a);
+}
+function zipFiles(files) {
+  var parts=[],central=[],offset=0,centSize=0,i,f,filename,c,local,entry;
+  for(i=0;i<files.length;i++) {
+    f=files[i];filename=encodeAscii(f.name);c=crc32(f.bytes);
+    local=headerBytes('local',filename,f.bytes,c,0);
+    parts.push(local,filename,f.bytes);
+    entry=[headerBytes('central',filename,f.bytes,c,offset),filename];
+    central.push(entry[0],entry[1]);centSize+=entry[0].length+entry[1].length;
+    offset+=local.length+filename.length+f.bytes.length;
+  }
+  var end=[];function add(v){for(var j=0;j<v.length;j++)end.push(v[j]);}
+  add(le32(0x06054b50));add(le16(0));add(le16(0));add(le16(files.length));add(le16(files.length));add(le32(centSize));add(le32(offset));add(le16(0));
+  return new Blob(parts.concat(central,[new Uint8Array(end)]),{type:'application/zip'});
+}
+function exportAll(){
+  var approved=pairs.filter(function(p){return p.keep && validRect(p.english)&&validRect(p.hebrew);});
+  if(!approved.length){msg('No approved pairs with both crops.');return;}
+  var files=[], manifest={format:'ALT-screenshot-pairs-1',sourceFile:fileName,mode:'image-only',entries:[]};
+  approved.forEach(function(p,i){
+    var id=('000'+(i+1)).slice(-3),e='definition-'+id+'.png',h='word-'+id+'.png';
+    files.push({name:e,bytes:pngBytes(makeCropData(p.english))});
+    files.push({name:h,bytes:pngBytes(makeCropData(p.hebrew))});
+    manifest.entries.push({wordImage:h,definitionImage:e,column:p.side});
+  });
+  var data=unescape(encodeURIComponent(JSON.stringify(manifest,null,2))),bytes=new Uint8Array(data.length),i;
+  for(i=0;i<data.length;i++)bytes[i]=data.charCodeAt(i);
+  files.push({name:'manifest.json',bytes:bytes});
+  downloadBlob(zipFiles(files),'ancient-language-suggested-crops.zip');
+  msg('Exported '+approved.length+' approved pairs. Extract the ZIP and import each word/definition PNG via the existing Add entry screen.');
+}
+$('file').addEventListener('change',function(){openFile(this.files && this.files[0]);});
+$('analyze').addEventListener('click',suggest);
+$('drawEnglish').addEventListener('click',function(){setMode('english');});
+$('drawHebrew').addEventListener('click',function(){setMode('hebrew');});
+$('cancelDraw').addEventListener('click',function(){setMode('');});
+$('addPair').addEventListener('click',function(){
+  if(!W)return;
+  pairs.push({english:rect(W*.02,H*.35,W*.22,H*.09),hebrew:rect(W*.26,H*.35,W*.22,H*.09),keep:true,side:'manual'});
+  selected=pairs.length-1;setMode('english');paint();renderPairs();
+});
+$('downloadZip').addEventListener('click',exportAll);
+}());
+</script>
+</body>
+</html>
