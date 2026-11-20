@@ -16,6 +16,8 @@
   var quizState = null;
   var speedState = null;
   var speedTimer = null;
+  var batchPending = null;
+  var batchLoading = false;
 
   function el(id) { return document.getElementById(id); }
   function blankModel() { return {format: 'ancient-language-trainer', version: 1, name: 'My Ancient Languages', entries: [], scores: {}, settings: {goal: 100, reward: 'Enjoy a tasty snack!'}}; }
@@ -31,7 +33,7 @@
   function promptDiscard() { return !dirty || window.confirm('You have unsaved changes. Discard them and open another collection?'); }
   function setVisible(id, visible) { if (visible) el(id).classList.remove('hidden'); else el(id).classList.add('hidden'); }
   function showView(name) {
-    var names = ['entries','editor','importer','matching','flashcards','quiz','speed','statistics','help'];
+    var names = ['entries','editor','importer','batch','matching','flashcards','quiz','speed','statistics','help'];
     var i;
     for (i = 0; i < names.length; i++) setVisible('view-' + names[i], names[i] === name);
     hideMenus();
@@ -203,11 +205,117 @@
     if(!file || file.size > 45000000) { msg('Choose a collection JSON smaller than 45 MB.');return; }
     var reader = new FileReader();
     reader.onload = function(){
-      try { var data = validateModel(JSON.parse(reader.result)); if(!promptDiscard())return; model=data;dirty=false;el('fileState').textContent='Loaded collection'; resetEditor(false); refresh();showView('entries');msg('Collection loaded: '+model.entries.length+' vocabulary entries.'); }
+      try { var data = validateModel(JSON.parse(reader.result)); if(!promptDiscard())return; model=data;clearBatch();dirty=false;el('fileState').textContent='Loaded collection'; resetEditor(false); refresh();showView('entries');msg('Collection loaded: '+model.entries.length+' vocabulary entries.'); }
       catch(ex){msg('Import failed: '+ex.message);}
     };
     reader.onerror=function(){msg('Could not read the collection JSON.');};reader.readAsText(file);
   }
+  // Batch import keeps the existing version-1 collection format intact.
+  function batchMsg(text) { el('batchStatus').textContent = text; msg(text); }
+  function clearBatch(text) {
+    batchPending = null;
+    clear(el('batchRows'));
+    el('batchReview').classList.add('hidden');
+    el('batchSelectedCount').textContent = '0 selected';
+    if (text) batchMsg(text);
+  }
+  function batchCount() {
+    if(!batchPending)return;
+    var count=0,i;
+    for(i=0;i<batchPending.entries.length;i++)if(batchPending.entries[i].selected)count++;
+    el('batchSelectedCount').textContent = count + ' of ' + batchPending.entries.length + ' selected';
+  }
+  function renderBatch(data) {
+    batchPending = data;
+    clear(el('batchRows'));
+    el('batchLanguage').value = data.language || 'Biblical Hebrew';
+    el('batchTextbook').value = data.textbook || 'The First Hebrew Primer';
+    el('batchChapter').value = data.chapter || 'Chapter 17';
+    for(var i=0;i<data.entries.length;i++)(function(entry,index) {
+      var row=create('div','batch-row');
+      var title=create('label','batch-check');
+      var checkbox=create('input');checkbox.type='checkbox';checkbox.checked=!!entry.selected;
+      checkbox.addEventListener('change',function(){entry.selected=checkbox.checked;batchCount();});
+      title.appendChild(checkbox);
+      title.appendChild(document.createTextNode(' Include pair '+(index+1)+(entry.column?' ('+entry.column+' column)':'')));
+      row.appendChild(title);
+      var sides=create('div','batch-pair');
+      function face(heading,uri) {
+        var box=create('div');box.appendChild(create('strong','',heading));
+        var frame=create('div','batch-image-box');
+        var img=create('img');img.src=uri;img.alt=heading+' for pair '+(index+1);
+        frame.appendChild(img);box.appendChild(frame);return box;
+      }
+      sides.appendChild(face('English definition',entry.definitionURI));
+      sides.appendChild(face('Hebrew word / form',entry.wordURI));
+      row.appendChild(sides);
+      var info=create('div','batch-pair');
+      function field(labelText, max, prop) {
+        var box=create('div'),label=create('label','',labelText),input=create('input');
+        input.type='text';input.maxLength=max;input.value=entry[prop] || '';
+        input.addEventListener('input',function(){entry[prop]=this.value;});
+        box.appendChild(label);box.appendChild(input);return box;
+      }
+      info.appendChild(field('Grammar / morphology (optional)',400,'grammar'));
+      info.appendChild(field('Notes (optional)',2000,'notes'));
+      row.appendChild(info);el('batchRows').appendChild(row);
+    })(data.entries[i],i);
+    el('batchReview').classList.remove('hidden');
+    batchCount();
+    batchMsg('Loaded '+data.entries.length+' pairs'+(data.sourceFile?' from '+data.sourceFile:'')+'. Check the images and metadata, then import.');
+    showView('batch');
+  }
+  function loadBatchFile() {
+    var file=el('batchFile').files && el('batchFile').files[0];
+    if(!file){batchMsg('Choose a Screenshot Pair Helper ZIP or approved-batch JSON.');return;}
+    if(batchLoading)return;
+    if(!window.ALTBatchCore){batchMsg('Batch support is missing. Check the installed assets.');return;}
+    // Clear any stale preview before an asynchronous new-file read.
+    clearBatch();batchLoading=true;el('batchLoad').disabled=true;
+    function finish() { batchLoading=false;el('batchLoad').disabled=false; }
+    function failed(error) {finish();clearBatch('Could not load batch: '+error);}
+    if(/\.zip$/i.test(file.name)) {
+      if(!window.ALTReadPairZip){failed('ZIP reader is missing.');return;}
+      window.ALTReadPairZip(file,function(data) {
+        try{var ready=window.ALTBatchCore.fromZip(data);finish();renderBatch(ready);}catch(err){failed(err.message);}
+      },failed);
+    } else if(/\.json$/i.test(file.name)) {
+      if(file.size > 95*1024*1024){failed('Approved-batch JSON is too large (95 MB limit).');return;}
+      var reader=new FileReader();
+      reader.onerror=function(){failed('Could not read JSON file.');};
+      reader.onload=function(){
+        try{var ready=window.ALTBatchCore.fromApproved(JSON.parse(reader.result));finish();renderBatch(ready);}
+        catch(err){failed(err.message);}
+      };
+      reader.readAsText(file);
+    } else failed('Choose a .zip or .json file.');
+  }
+  function importBatch() {
+    if(!batchPending)return;
+    try {
+      var selected=window.ALTBatchCore.build(batchPending.entries,model.entries,{
+        language:el('batchLanguage').value,chapter:el('batchChapter').value,textbook:el('batchTextbook').value
+      });
+      var available=20000-model.entries.length;
+      if(selected.entries.length>available){batchMsg('Collection capacity exceeded. Remove entries or import a smaller batch.');return;}
+      if(!selected.entries.length){batchMsg('Nothing new to import: '+selected.duplicates+' duplicate(s), '+selected.unchecked+' unchecked.');return;}
+      var explanation='Add '+selected.entries.length+' new vocabulary entries?';
+      if(selected.duplicates)explanation+='\n'+selected.duplicates+' exact duplicate(s) will be skipped.';
+      explanation+='\nYour current vocabulary and scores will remain unchanged. You must save collection JSON afterward.';
+      if(!window.confirm(explanation))return;
+      for(var i=0;i<selected.entries.length;i++) {
+        selected.entries[i].id='entry-'+new Date().getTime()+'-'+i+'-'+Math.floor(Math.random()*1000000);
+        model.entries.push(selected.entries[i]);
+      }
+      markDirty();
+      // Show all entries after import, even when an older chapter filter was active.
+      el('languageFilter').value='';el('chapterFilter').value='';
+      refresh();showView('entries');
+      clearBatch();
+      batchMsg('Imported '+selected.entries.length+' new vocabulary entries; skipped '+selected.duplicates+' duplicate(s) and '+selected.unchecked+' unchecked pair(s). SAVE your collection JSON now.');
+    } catch(err) { batchMsg('Import not completed: '+err.message); }
+  }
+
   function todayPoints() { return model.scores[localDay()] || 0; }
   function addPoints(amount) { var key=localDay(); model.scores[key]=(model.scores[key]||0)+amount;markDirty();renderReward();renderStats(); }
   function renderReward() {
@@ -377,10 +485,24 @@
   }
   function init() {
     bindClicks();
-    el('newCollection').addEventListener('click',function(){if(!promptDiscard())return;model=blankModel();dirty=false;el('fileState').textContent='New unsaved collection';resetEditor(false);refresh();showView('entries');msg('Blank collection started.');});
+    el('newCollection').addEventListener('click',function(){if(!promptDiscard())return;model=blankModel();clearBatch();dirty=false;el('fileState').textContent='New unsaved collection';resetEditor(false);refresh();showView('entries');msg('Blank collection started.');});
     el('loadCollection').addEventListener('click',function(){hideMenus();el('collectionFile').click();});
     el('collectionFile').addEventListener('change',function(){if(this.files.length)readCollection(this.files[0]);this.value='';});
     el('saveCollection').addEventListener('click',function(){hideMenus();downloadCollection();});
+    el('batchLoad').addEventListener('click',loadBatchFile);
+    el('batchClear').addEventListener('click',function(){clearBatch('Batch preview cleared. No entries changed.');el('batchFile').value='';});
+    function selectBatchAll(value){
+      if(!batchPending)return;
+      var boxes=el('batchRows').querySelectorAll('input[type=checkbox]');
+      for(var i=0;i<batchPending.entries.length;i++){
+        batchPending.entries[i].selected=value;
+        if(boxes[i])boxes[i].checked=value;
+      }
+      batchCount();
+    }
+    el('batchSelectAll').addEventListener('click',function(){selectBatchAll(true);});
+    el('batchSelectNone').addEventListener('click',function(){selectBatchAll(false);});
+    el('batchImport').addEventListener('click',importBatch);
     el('collectionTitle').addEventListener('change',function(){model.name=trimmed(this.value)||model.name;markDirty();});
     el('languageFilter').addEventListener('change',renderTable);el('chapterFilter').addEventListener('change',renderTable);
     el('sourceMode').addEventListener('change',function(){setSideMode('source');});

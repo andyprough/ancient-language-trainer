@@ -69,3 +69,15 @@ legend { font-weight: bold; color: #26445e; padding: 0 6px; }
 .stats-grid span { display: block; color: #687783; font-size: 13px; }
 footer { text-align: center; color: #6b777f; font-size: 12px; padding: 15px 12px 32px; }
 @media (max-width: 760px) { .application { display: block; } .sidebar { width: auto; margin-bottom: 14px; } .columns { grid-template-columns: 1fr; } .match-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } .choices { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: 1fr; } .file-state { margin-left: 0; } }
+
+/* Direct image-only vocabulary batch import; responsive and Goanna-friendly. */
+.batch-rows { max-height: 760px; overflow: auto; border: 1px solid #d6e0e8; padding: 0 12px; }
+.batch-row { padding: 15px 0; border-bottom: 1px solid #d6e0e8; }
+.batch-row:last-child { border-bottom: 0; }
+.batch-check { display: block; padding: 6px 10px; background: #eef3f8; margin: 0 0 10px; }
+.batch-check input { margin: 0 6px 0 0; vertical-align: middle; }
+.batch-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 8px 0; }
+.batch-image-box { border: 1px solid #c9d4dc; background: #fff; min-height: 82px; display: flex; align-items: center; padding: 8px; margin-top: 5px; overflow: hidden; }
+.batch-image-box img { display: block; max-height: 140px; max-width: 100%; object-fit: contain; }
+#batchStatus { overflow-wrap: anywhere; }
+@media(max-width:760px) { .batch-pair { grid-template-columns: 1fr; } }

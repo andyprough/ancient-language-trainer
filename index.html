@@ -29,6 +29,7 @@
       <button type="button" data-view="entries">Browse entries</button>
       <button type="button" data-view="editor">Add vocabulary entry</button>
       <button type="button" data-view="importer">Crop from chapter screenshot</button>
+      <button type="button" data-view="batch">Import vocabulary batch...</button>
     </div>
     <div class="menu-popup hidden" id="menu-games" role="group" aria-label="Game actions">
       <button type="button" data-view="matching">Memory Match</button>
@@ -50,6 +51,7 @@
         <button type="button" data-view="entries">Browse vocabulary</button>
         <button type="button" data-view="editor">Add entry</button>
         <button type="button" data-view="importer">Crop page</button>
+        <button type="button" data-view="batch">Import batch</button>
       </div>
       <div class="daily-reward">
         <h3>Today's study reward</h3>
@@ -67,6 +69,7 @@
         <div class="toolbar">
           <button type="button" class="primary" data-view="editor">Add entry</button>
           <button type="button" data-view="importer">Crop from screenshot</button>
+          <button type="button" data-view="batch">Import batch</button>
           <span class="spacer"></span><strong id="entryCount">0 entries</strong>
         </div>
         <div class="table-wrap"><table class="entries-table"><thead><tr><th scope="col">Word / form</th><th scope="col">Definition / answer</th><th scope="col">Language and chapter</th><th scope="col">Actions</th></tr></thead><tbody id="entryRows"></tbody></table></div>
@@ -134,6 +137,37 @@
         <p class="muted">Tip: return to this cropper repeatedly to build additional entries from the same chapter screenshot. After cropping both sides, use the entry form to enter any grammar notes and save.</p>
       </section>
 
+      <section class="view hidden" id="view-batch">
+        <h2>Import a vocabulary batch</h2>
+        <p>Import images directly from a Screenshot Pair Helper ZIP, or from an approved-batch JSON exported by Batch Vocabulary Review. Nothing is uploaded. Your existing vocabulary is not replaced.</p>
+        <fieldset>
+          <legend>1. Load a batch file</legend>
+          <label for="batchFile">Screenshot-pairs ZIP or approved-batch JSON</label>
+          <input type="file" id="batchFile" accept=".zip,.json,application/zip,application/json">
+          <div class="toolbar"><button type="button" id="batchLoad" class="primary">Open file and preview</button><button type="button" id="batchClear">Clear preview</button></div>
+          <p id="batchStatus" class="muted" role="status" aria-live="polite">No batch loaded.</p>
+        </fieldset>
+        <div id="batchReview" class="hidden">
+          <fieldset>
+            <legend>2. Review pairs and choose study information</legend>
+            <div class="columns">
+              <div><label for="batchLanguage">Language</label><input type="text" id="batchLanguage" value="Biblical Hebrew" maxlength="160"></div>
+              <div><label for="batchTextbook">Textbook / source</label><input type="text" id="batchTextbook" value="The First Hebrew Primer" maxlength="200"></div>
+              <div><label for="batchChapter">Chapter / group</label><input type="text" id="batchChapter" value="Chapter 17" maxlength="160"></div>
+            </div>
+            <div class="toolbar"><button type="button" id="batchSelectAll">Select all</button><button type="button" id="batchSelectNone">Select none</button><strong id="batchSelectedCount">0 selected</strong></div>
+            <p class="muted">Each word and answer remains an unmodified screenshot. You can deselect a pair or add individual grammar notes. For cropping adjustments, use Screenshot Pair Helper before importing.</p>
+            <div id="batchRows" class="batch-rows"></div>
+          </fieldset>
+          <fieldset>
+            <legend>3. Add selected entries</legend>
+            <p><strong>Existing entries will be kept.</strong> Exact matches already present in the same language, chapter, and textbook will be skipped. Images are not re-encoded. This does not change your game scores.</p>
+            <button type="button" id="batchImport" class="primary">Import selected vocabulary into this collection</button>
+            <p class="muted">After importing, choose File &gt; Save collection JSON to preserve your new vocabulary. Your personal textbook images should stay outside your public GitHub repository.</p>
+          </fieldset>
+        </div>
+      </section>
+
       <section class="view hidden game" id="view-matching">
         <h2>Memory Match</h2><p>Find each word and its matching definition. Requires at least two study entries in the selected language/group.</p>
         <div class="toolbar"><button type="button" class="primary" id="startMatching">New matching game</button><span id="matchInfo"></span></div><div id="matchBoard" class="match-board"></div>
@@ -161,7 +195,7 @@
       <section class="view hidden" id="view-help">
         <h2>Help and privacy</h2>
         <h3>Getting started</h3>
-        <ol><li>Choose Vocabulary &gt; Add vocabulary entry for a word screenshot, typed word, typed answer, or answer screenshot.</li><li>Choose Vocabulary &gt; Crop from screenshot for manual selection from a larger textbook page. Drag across the image to select the content, then assign it to either side.</li><li>Save the entry. Create at least two entries to use Memory Match and Multiple Choice.</li><li>Choose File &gt; Save collection JSON regularly. Opening a JSON file will replace the current in-memory collection.</li></ol>
+        <ol><li>Choose Vocabulary &gt; Import vocabulary batch to review and add Screenshot Pair Helper ZIPs (or approved-batch JSON files) without replacing existing entries.</li><li>Choose Vocabulary &gt; Add vocabulary entry for a word screenshot, typed word, typed answer, or answer screenshot.</li><li>Choose Vocabulary &gt; Crop from screenshot for manual selection from a larger textbook page. Drag across the image to select the content, then assign it to either side.</li><li>Save the entry. Create at least two entries to use Memory Match and Multiple Choice.</li><li>Choose File &gt; Save collection JSON regularly. Opening a JSON file will replace the current in-memory collection.</li></ol>
         <h3>Local files and copyright</h3>
         <p>No uploads or web services are used. Your local study collection may contain textbook images; keep those personal materials outside the public source-code repository unless you have distribution permission.</p>
         <h3>Compatibility</h3><p>Designed with conservative JavaScript for Pale Moon and Basilisk (UXP/Goanna); verification on those actual browsers is still required. Local-file download behavior differs between browsers, so test Save and Open before entering a large number of entries.</p>
@@ -171,6 +205,9 @@
   </div>
   <input class="hidden" type="file" id="collectionFile" accept=".json,application/json">
   <footer>Ancient Language Trainer - Free software under GPL-3.0-or-later. You own and control your study data.</footer>
+  <script src="vendor/jszip.min.js"></script>
+  <script src="assets/alt-pair-zip-reader.js"></script>
+  <script src="assets/alt-batch-core.js"></script>
   <script src="assets/app.js"></script>
   <script src="assets/alt-readability.js"></script>
 </body>
